@@ -1,0 +1,28 @@
+USE [PowerBIModels]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_REP0041_Param_BR_Filter]    Script Date: 21/01/2026 16:58:57 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+ALTER   PROCEDURE [dbo].[sp_REP0041_Param_BR_Filter]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT DISTINCT
+        CASE
+            WHEN BR.Prefix = 'TP' THEN '3rd Party'
+            WHEN BR.Prefix IN ('CYP','BRS') THEN 'PPG_BRS/CY'
+            WHEN BR.Prefix IN ('PP','SC') THEN 'PPG_PP/SC'
+            WHEN BR.Brand  LIKE 'SIMS%' THEN 'PPG_SIMS'
+            WHEN BR.Prefix IN ('UNITE','CEDAR','LMC') THEN 'PPG_FHEL'
+            WHEN BR.Prefix = 'ADTV' THEN 'PPG_ADTV'
+            ELSE 'NEW BRAND'
+        END AS BR_Filter
+    FROM [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Brands BR
+    ORDER BY BR_Filter;
+END
