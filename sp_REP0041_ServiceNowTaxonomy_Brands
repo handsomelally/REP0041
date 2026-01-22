@@ -1,0 +1,42 @@
+USE [PowerBIModels]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_REP0041_ServiceNowTaxonomy_Brands]    Script Date: 22/01/2026 14:08:17 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- ==========================================================================
+-- Author:		Maysheela Olliver
+-- Create date: 8/9/2025
+-- Description:	REP0041_ServiceNowTaxonomy_Brands2
+-- Connect to PPCGIVDWHSQL01\EXTERNALDATA,1434 ([PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl)
+-- ===========================================================================
+
+ALTER PROCEDURE [dbo].[sp_REP0041_ServiceNowTaxonomy_Brands]
+ 
+AS
+ 
+BEGIN
+
+SELECT * 
+,	CASE
+		WHEN BR.Prefix ='TP' THEN 'TP'
+		ELSE 'PPG'
+	END AS 'PPG/TP'
+,	CASE
+		WHEN BR.Prefix = 'TP' THEN '3rd Party'
+		WHEN BR.Prefix = 'CYP' THEN 'PPG_BRS/CY'
+		WHEN BR.Prefix = 'BRS' THEN 'PPG_BRS/CY'
+		WHEN BR.Prefix = 'PP' OR BR.Prefix = 'SC' THEN 'PPG_PP/SC'
+		WHEN BR.Brand LIKE 'SIMS%' THEN 'PPG_SIMS'
+		WHEN BR.Prefix IN ('UNITE','CEDAR','LMC') THEN'PPG_FHEL'
+		WHEN BR.Prefix = 'ADTV' THEN 'PPG_ADTV'
+		ELSE 'NEW BRAND'
+	END AS BR_Filter
+
+
+FROM  [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Brands AS BR
+
+ORDER BY BR_Filter,BR.Brand
+
+End
