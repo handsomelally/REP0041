@@ -1,0 +1,110 @@
+USE [PowerBIModels]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_REP0041_ServiceNowTaxonomy_ExportMapping]    Script Date: 22/01/2026 14:10:42 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER   PROCEDURE [dbo].[sp_REP0041_ServiceNowTaxonomy_ExportMapping]
+    @SourceSystem   nvarchar(max) = NULL,   -- multi-select pipe-delimited e.g. 'ESS|PPL'
+    @BR_Filter      nvarchar(max) = NULL,   -- e.g. '3rd Party|PPG_PP/SC'
+    @SP_Brand       nvarchar(max) = NULL,   -- e.g. 'BlueRunner|ParentPay'
+    @ProductType    nvarchar(max) = NULL,   -- e.g. 'Product|Bundle'
+    @SN_Brand       nvarchar(max) = NULL,   -- e.g. 'BlueRunner'
+    @BundleID       nvarchar(max) = NULL,   -- e.g. '3|4|55'
+    @SP_NumberLike  nvarchar(100) = NULL,   -- text search
+    @SN_NumberLike  nvarchar(100) = NULL,
+    @SN_NameLike    nvarchar(200) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    WITH
+    p_SourceSystem AS (SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@SourceSystem, '|') WHERE @SourceSystem IS NOT NULL),
+    p_BRFilter     AS (SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@BR_Filter, '|')   WHERE @BR_Filter IS NOT NULL),
+    p_SPBrand      AS (SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@SP_Brand, '|')    WHERE @SP_Brand IS NOT NULL),
+    p_ProductType  AS (SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@ProductType, '|') WHERE @ProductType IS NOT NULL),
+    p_SNBrand      AS (SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@SN_Brand, '|')    WHERE @SN_Brand IS NOT NULL),
+    p_BundleID     AS (SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@BundleID, '|')    WHERE @BundleID IS NOT NULL)
+
+    SELECT
+        SP.SourceSystem            AS SP_SourceSystem,
+        SP.SourceProductNumber     AS SP_Number,
+        SP.SourceProductDescription AS SP_Description,
+        SP.Brand                   AS SP_Brand,
+        SP.ProductType             AS SP_ProductType,
+        SP.DisplayName             AS SP_DisplayName,
+        SP.ShortName               AS SP_ShortName,
+
+        SN.ProductNumber           AS SN_ProductNumber,
+        SN.DisplayName             AS SN_DisplayName,
+        SN.ShortName               AS SN_ShortName,
+        SN.Brand                   AS SN_Brand,
+
+        BR.Prefix                  AS BR_Prefix,
+
+        B.BundleID                 AS B_ID,
+        B.BundleCode               AS B_Code,
+        B.BundleBrand              AS B_Brand,
+        B.ShortName                AS B_ShortName,
+        B.DisplayName              AS B_DisplayName,
+
+        BP.ProductDisplayName      AS BP_DisplayName,
+        BP.ProductShortName        AS BP_Shortname,
+        BP.Conditional             AS BP_Conditional,
+        BP.Conditions              AS BP_Conditions,
+        BP.DecommissionedDate      AS BP_DecommissionDate,
+
+        CASE WHEN B.ShortName IS NULL THEN SN.ShortName ELSE B.ShortName END AS SN_ProductNameorBundleName,
+        CASE WHEN SP.ProductType = 'Product' THEN SN.Brand
+             WHEN SP.ProductType = 'Bundle'  THEN B.BundleBrand
+             ELSE NULL END AS SN_ProductModelorBundleName,
+
+        -- replicate your Brands grouping logic here so we can filter by it
+        CASE
+            WHEN BR.Prefix = 'TP' THEN '3rd Party'
+            WHEN BR.Prefix IN ('CYP','BRS') THEN 'PPG_BRS/CY'
+            WHEN BR.Prefix IN ('PP','SC') THEN 'PPG_PP/SC'
+            WHEN BR.Brand  LIKE 'SIMS%' THEN 'PPG_SIMS'
+            WHEN BR.Prefix IN ('UNITE','CEDAR','LMC') THEN 'PPG_FHEL'
+            WHEN BR.Prefix = 'ADTV' THEN 'PPG_ADTV'
+            ELSE 'NEW BRAND'
+        END AS BR_Filter
+
+    FROM [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Products AS SP
+    LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Bundles AS B
+        ON SP.BundleID = B.BundleID
+    LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Bundle_Products AS BP
+        ON B.BundleID = BP.BundleID AND BP.Decommissioned = 0
+    LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.ServiceNowProducts AS SN
+        ON COALESCE(BP.ProductDisplayName, SP.DisplayName) = SN.DisplayName
+        AND SN.ProductNumber NOT LIKE '%COMP%'
+    LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Brands AS BR
+        ON SP.Brand = BR.Brand
+
+    WHERE
+        (@SourceSystem IS NULL OR EXISTS (SELECT 1 FROM p_SourceSystem s WHERE s.v = SP.SourceSystem))
+    AND (@SP_Brand    IS NULL OR EXISTS (SELECT 1 FROM p_SPBrand b WHERE b.v = SP.Brand))
+    AND (@ProductType IS NULL OR EXISTS (SELECT 1 FROM p_ProductType t WHERE t.v = SP.ProductType))
+    AND (@SN_Brand    IS NULL OR EXISTS (SELECT 1 FROM p_SNBrand n WHERE n.v = SN.Brand))
+    AND (@BundleID    IS NULL OR EXISTS (SELECT 1 FROM p_BundleID x WHERE x.v = CONVERT(nvarchar(50), B.BundleID)))
+
+    AND (@SP_NumberLike IS NULL OR SP.SourceProductNumber LIKE '%' + @SP_NumberLike + '%')
+    AND (@SN_NumberLike IS NULL OR SN.ProductNumber       LIKE '%' + @SN_NumberLike + '%')
+    AND (@SN_NameLike   IS NULL OR SN.DisplayName         LIKE '%' + @SN_NameLike + '%')
+
+    AND (@BR_Filter IS NULL OR EXISTS (
+            SELECT 1 FROM p_BRFilter f
+            WHERE f.v = CASE
+                WHEN BR.Prefix = 'TP' THEN '3rd Party'
+                WHEN BR.Prefix IN ('CYP','BRS') THEN 'PPG_BRS/CY'
+                WHEN BR.Prefix IN ('PP','SC') THEN 'PPG_PP/SC'
+                WHEN BR.Brand  LIKE 'SIMS%' THEN 'PPG_SIMS'
+                WHEN BR.Prefix IN ('UNITE','CEDAR','LMC') THEN 'PPG_FHEL'
+                WHEN BR.Prefix = 'ADTV' THEN 'PPG_ADTV'
+                ELSE 'NEW BRAND'
+            END
+        ))
+
+    ORDER BY SP.SourceProductNumber, BP.ProductDisplayName;
+END
