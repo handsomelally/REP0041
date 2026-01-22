@@ -1,0 +1,21 @@
+USE [PowerBIModels]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_REP0041_Param_SN_Brand]    Script Date: 22/01/2026 14:05:31 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+ALTER   PROCEDURE [dbo].[sp_REP0041_Param_SN_Brand]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT DISTINCT
+        Brand
+    FROM [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.ServiceNowProducts
+    WHERE Brand IS NOT NULL
+    ORDER BY Brand;
+END
