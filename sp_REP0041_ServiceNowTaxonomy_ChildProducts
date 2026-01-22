@@ -1,0 +1,25 @@
+USE [PowerBIModels]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_REP0041_ServiceNowTaxonomy_ChildProducts]    Script Date: 22/01/2026 14:10:09 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- ==========================================================================
+-- Author:		Maysheela Olliver
+-- Create date: 30/05/2025
+-- Description:	REP0041 - ServineNow Taxonomy - ChildProducts
+-- Connect to PPCGIVDWHSQL01\EXTERNALDATA,1434 ([PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl)
+-- ===========================================================================
+
+ALTER PROCEDURE  [dbo].[sp_REP0041_ServiceNowTaxonomy_ChildProducts]
+ 
+AS
+ 
+BEGIN
+
+SELECT *
+     
+  FROM [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.ChildProducts
+
+END
