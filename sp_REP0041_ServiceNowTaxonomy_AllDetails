@@ -1,0 +1,65 @@
+USE [PowerBIModels]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_REP0041_ServiceNowTaxonomy_AllDetails]    Script Date: 22/01/2026 14:07:25 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- ==========================================================================
+-- Author:		Maysheela Olliver
+-- Create date: 02/09/2025
+-- Description: - REP0041 - ServiceNowTaxonomy_AllProducts
+-- Connect to PPCGIVDWHSQL01\EXTERNALDATA,1434 ([PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl)
+-- ===========================================================================
+
+ALTER PROCEDURE [dbo].[sp_REP0041_ServiceNowTaxonomy_AllDetails]
+ 
+AS
+ 
+BEGIN
+
+SELECT 
+	SP.SourceSystem AS SP_SourceSystem
+,	SP.SourceProductNumber AS SP_Number
+,	SP.SourceProductDescription AS SP_Description
+,   SP.Brand AS SP_Brand
+,	SP.ProductType AS SP_ProductType
+,	SP.DisplayName AS SP_DisplayName
+,	SP.ShortName AS SP_ShortName
+,	B.BundleCode AS B_Code
+,	B.BundleID AS B_ID
+,	BP.ProductDisplayName AS BP_DisplayName
+,	BP.ProductShortName AS BP_Shortname
+,	BP.Conditional	AS BP_Conditional
+,	BP.Conditions AS BP_Conditions
+,	SN.ProductNumber AS SN_ProductNumber
+,	SN.DisplayName AS SN_DisplayName
+,	SN.ShortName AS SN_ShortName
+,	BP.DecommissionedDate AS BP_DecommissionDate
+,	BR.Prefix AS BR_Prefix
+,	B.BundleBrand AS B_Brand
+,	B.ShortName AS B_ShortName
+,	B.DisplayName AS B_DisplayName
+,	SN.Brand AS SN_Brand
+
+,	CASE
+		WHEN B.ShortName IS NULL THEN SN.ShortName
+		ELSE B.ShortName
+	END AS SN_ProductNameorBundleName
+
+,	CASE
+		WHEN SP.ProductType = 'Product' THEN SN.Brand
+		WHEN SP.ProductType = 'Bundle' THEN B.BundleBrand
+		ELSE NULL  
+	END AS SN_ProductModelorBundleName
+
+FROM [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Products AS SP
+LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Bundles AS B ON SP.BundleID = B.BundleID
+LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Bundle_Products AS BP ON B.BundleID = BP.BundleID AND BP.Decommissioned = 0
+LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.ServiceNowProducts AS SN ON COALESCE(BP.ProductDisplayName,SP.DisplayName) = SN.DisplayName AND SN.ProductNumber NOT LIKE '%COMP%'
+LEFT JOIN [PPCGIVDWHSQL01\EXTERNALDATA,1434].ServiceNowControl.Reference.Brands AS BR ON SP.Brand = BR.Brand
+
+ORDER BY SP.SourceProductNumber, BP.ProductDisplayName
+
+END
+
